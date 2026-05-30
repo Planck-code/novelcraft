@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+{% block content %}
+{% if chapter %}
+<section class="card">
+  <div class="section-header">
+    <div>
+      <p class="eyebrow">章节详情</p>
+      <h2>第 {{ chapter.chapter_no }} 章 {{ chapter.title }}</h2>
+      <p class="muted">{{ chapter.word_count }} 字 · 状态: {{ chapter.analysis_status }}</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button id="analyze-button" onclick="runAnalysis()">🔍 分析本章</button>
+      <button id="revision-button" onclick="generateRevision()" style="background:rgba(255,255,255,0.08);color:var(--text);">📝 修改建议</button>
+    </div>
+  </div>
+</section>
+
+<section class="grid two-col">
+  <!-- Chapter Content -->
+  <article class="card prose">
+    <h3>正文</h3>
+    <pre>{{ content }}</pre>
+  </article>
+
+  <!-- Analysis Panel -->
+  <aside class="card">
+    <h3>分析结果</h3>
+
+    <!-- Provider & Model selector -->
+    <div class="stack compact" style="margin-bottom:12px;padding:8px;background:rgba(255,255,255,0.02);border-radius:12px;">
+      <div style="display:flex;gap:8px;">
+        <select id="provider-select" style="width:auto;font-size:12px;padding:6px 10px;">
+          <option value="openai">OpenAI</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="gemini">Gemini</option>
+        </select>
+        <select id="model-select" style="width:auto;font-size:12px;padding:6px 10px;">
+          <option value="gpt-4o-mini">gpt-4o-mini</option>
+          <option value="gpt-4o">gpt-4o</option>
+          <option value="deepseek-chat">deepseek-chat</option>
+          <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="analysis-panel" class="stack compact">
+      {% if analysis %}
+      <div class="analysis-section">
+        <p><strong>📖 剧情摘要</strong></p>
+        <p>{{ analysis.summary }}</p>
+      </div>
+      <div class="analysis-section">
+        <p><strong>😊 情绪评估</strong></p>
+        <p>{{ analysis.emotion_overview or '暂无' }}</p>
+      </div>
+      <div class="analysis-section">
+        <p><strong>⚔️ 冲突分析</strong></p>
+        <p>{{ analysis.battle_conflict_summary or '暂无' }}</p>
+      </div>
+      <div class="analysis-section">
+        <p><strong>🌍 世界观变化</strong></p>
+        <p>{{ analysis.world_building_delta_summary or '暂无' }}</p>
+      </div>
+      <div class="analysis-section">
+        <p><strong>🔮 伏笔</strong></p>
+        <p>{{ analysis.foreshadowing_summary or '暂无' }}</p>
+      </div>
+      <p class="muted" style="font-size:12px;">分析模型: {{ analysis.provider_name }} / {{ analysis.model_name }}</p>
+      {% else %}
+      <p class="muted">尚未分析，点击"分析本章"开始。</p>
+      {% endif %}
+    </div>
+
+    <!-- Revision Advice Panel -->
+    <div id="revision-panel" style="margin-top:16px;display:none;">
+      <h3>📝 修改建议</h3>
+      <div id="revision-content" class="stack compact"></div>
+    </div>
+  </aside>
+</section>
+
+<script>
+const chapterId = {{ chapter.id }};
+
+function getProvider() {
+  return document.getElementById('provider-select').value;
+}
+
+function getModel() {
+  return document.getElementById('model-select').value;
+}
+
+async function runAnalysis() {
+  const btn = document.getElementById('analyze-button');
+  const panel = document.getElementById('analysis-panel');
+  btn.disabled = true;
+  panel.innerHTML = '<p class="muted">⏳ 正在调用 AI 分析中（可能需要30-60秒）...</p>';
+
+  try {
+    const resp = await fetch('/api/v1/chapters/' + chapterId + '/analyze', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        provider_name: getProvider(),
+        model_name: getModel(),
+        force_reanalyze: true
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      panel.innerHTML = '<p class="muted" style="color:#e53e3e;">分析失败: ' + (data.detail || '未知错误') + '</p>';
+      return;
+    }
+    panel.innerHTML = `
+      <div class="analysis-section"><p><strong>📖 剧情摘要</strong></p><p>${data.summary}</p></div>
+      <div class="analysis-section"><p><strong>😊 情绪评估</strong></p><p>${data.emotion_overview || '暂无'}</p></div>
+      <div class="analysis-section"><p><strong>⚔️ 冲突分析</strong></p><p>${data.battle_conflict_summary || '暂无'}</p></div>
+      <div class="analysis-section"><p><strong>🌍 世界观变化</strong></p><p>${data.world_building_delta_summary || '暂无'}</p></div>
+      <div class="analysis-section"><p><strong>🔮 伏笔</strong></p><p>${data.foreshadowing_summary || '暂无'}</p></div>
+      <p class="muted" style="font-size:12px;">分析模型: ${data.provider_name} / ${data.model_name}</p>
+    `;
+  } catch(err) {
+    panel.innerHTML = '<p class="muted" style="color:#e53e3e;">请求失败: ' + err.message + '</p>';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function generateRevision() {
+  const btn = document.getElementById('revision-button');
+  const revPanel = document.getElementById('revision-panel');
+  const revContent = document.getElementById('revision-content');
+
+  btn.disabled = true;
+  revPanel.style.display = 'block';
+  revContent.innerHTML = '<p class="muted">⏳ 正在生成修改建议...</p>';
+
+  try {
+    const resp = await fetch('/api/v1/chapters/' + chapterId + '/revision-advice/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        provider_name: getProvider(),
+        model_name: getModel()
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      revContent.innerHTML = '<p class="muted" style="color:#e53e3e;">生成失败</p>';
+      return;
+    }
+
+    const severityColors = {critical:'#e53e3e',high:'#dd6b20',medium:'#d4a24c',low:'#718096'};
+    const categoryLabels = {
+      pacing:'节奏控制', filler_fluff:'水文检测', logic_issue:'逻辑问题',
+      cool_point_opportunity:'爽点机会', emotional_buildup:'情绪铺垫',
+      power_scaling_collapse:'战力崩坏', setting_conflict:'设定冲突',
+      character_consistency:'角色一致性', dialogue_quality:'对话质量',
+      description_quality:'描写质量', other:'其他'
+    };
+
+    if (data.length === 0) {
+      revContent.innerHTML = '<p class="muted">未发现需要修改的问题。</p>';
+    } else {
+      revContent.innerHTML = data.map(item => `
+        <div class="revision-item" style="border-left:3px solid ${severityColors[item.severity]||'#718096'};padding:12px;background:rgba(255,255,255,0.02);border-radius:8px;">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+            <strong>${item.title}</strong>
+            <span class="badge">${categoryLabels[item.category]||item.category}</span>
+            <span class="badge" style="background:${severityColors[item.severity]||'#718096'}22;color:${severityColors[item.severity]||'#718096'};">${item.severity}</span>
+          </div>
+          <p class="muted">${item.description}</p>
+          <p style="color:#f5d190;">💡 ${item.suggestion}</p>
+          ${item.excerpt ? '<p style="font-size:12px;color:var(--muted);">📎 原文: ' + item.excerpt + '</p>' : ''}
+        </div>
+      `).join('');
+    }
+  } catch(err) {
+    revContent.innerHTML = '<p class="muted" style="color:#e53e3e;">请求失败</p>';
+  } finally {
+    btn.disabled = false;
+  }
+}
+</script>
+
+<style>
+.analysis-section {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.analysis-section:last-child { border-bottom: none; }
+</style>
+{% else %}
+<section class="card"><p>章节不存在</p></section>
+{% endif %}
+{% endblock %}

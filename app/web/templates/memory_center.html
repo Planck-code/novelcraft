@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% block content %}
+{% if novel %}
+<section class="card">
+  <div class="section-header">
+    <div>
+      <p class="eyebrow">记忆中心</p>
+      <h2>{{ novel.title }} — 长期记忆</h2>
+      <p class="muted">
+        <a href="/novels/{{ novel.id }}">← 返回小说详情</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Tab Navigation -->
+<section class="tabs-nav">
+  <button class="tab-btn active" data-tab="characters" onclick="switchTab('characters')">👤 角色 ({{ characters|length }})</button>
+  <button class="tab-btn" data-tab="factions" onclick="switchTab('factions')">🏛 势力 ({{ factions|length }})</button>
+  <button class="tab-btn" data-tab="timeline" onclick="switchTab('timeline')">📅 时间线 ({{ timeline|length }})</button>
+  <button class="tab-btn" data-tab="issues" onclick="switchTab('issues')">⚠️ 设定冲突 ({{ issues|length }})</button>
+</section>
+
+<!-- Characters Tab -->
+<section id="tab-characters" class="tab-content">
+  <div class="card">
+    <h3>角色档案</h3>
+    <div class="stack compact">
+      {% for char in characters %}
+      <div class="list-item character-row">
+        <div>
+          <strong>{{ char.name }}</strong>
+          <span class="badge">{{ char.role or '未知' }}</span>
+          <span class="badge">{{ char.status or '状态未知' }}</span>
+          <p class="muted">{{ char.summary or '暂无摘要' }}</p>
+        </div>
+        <span class="muted">首次出场: 第{{ char.first_appearance_chapter_id or '?' }}章</span>
+      </div>
+      {% else %}
+      <p class="muted">暂无角色记录。完成章节分析后角色将自动出现在这里。</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- Factions Tab -->
+<section id="tab-factions" class="tab-content" style="display:none;">
+  <div class="card">
+    <h3>势力一览</h3>
+    <div class="stack compact">
+      {% for faction in factions %}
+      <div class="list-item">
+        <div>
+          <strong>{{ faction.name }}</strong>
+          <span class="badge">{{ faction.type or '未知类型' }}</span>
+          <span class="badge">{{ faction.status or '状态未知' }}</span>
+          <p class="muted">{{ faction.description or '暂无描述' }}</p>
+        </div>
+      </div>
+      {% else %}
+      <p class="muted">暂无势力记录。</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- Timeline Tab -->
+<section id="tab-timeline" class="tab-content" style="display:none;">
+  <div class="card">
+    <h3>重大事件时间线</h3>
+    <div class="stack compact">
+      {% for event in timeline %}
+      <div class="list-item">
+        <div>
+          <strong>{{ event.event_name }}</strong>
+          <span class="badge">{{ event.event_type or '事件' }}</span>
+          <p class="muted">{{ event.description[:200] }}</p>
+        </div>
+        <span class="muted">第{{ event.chapter_id }}章</span>
+      </div>
+      {% else %}
+      <p class="muted">暂无时间线事件。</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- Consistency Issues Tab -->
+<section id="tab-issues" class="tab-content" style="display:none;">
+  <div class="card">
+    <h3>设定一致性问题</h3>
+    <div class="stack compact">
+      {% for issue in issues %}
+      <div class="list-item" style="border-left: 3px solid {% if issue.severity == 'critical' %}#e53e3e{% elif issue.severity == 'high' %}#dd6b20{% elif issue.severity == 'medium' %}#d4a24c{% else %}#718096{% endif %};">
+        <div>
+          <strong>{{ issue.issue_type }}</strong>
+          <span class="badge">{{ issue.severity }}</span>
+          <span class="badge">{{ issue.resolution_status }}</span>
+          <p class="muted">{{ issue.description }}</p>
+        </div>
+        <span class="muted">第{{ issue.chapter_id }}章</span>
+      </div>
+      {% else %}
+      <p class="muted">🎉 暂未发现设定冲突问题。</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<script>
+function switchTab(tabName) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + tabName).style.display = 'block';
+  document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
+}
+</script>
+
+<style>
+.tabs-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tab-btn {
+  width: auto;
+  padding: 10px 20px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+.tab-btn.active {
+  background: rgba(212,162,76,0.14);
+  color: #f5d190;
+  border-color: rgba(212,162,76,0.45);
+}
+.character-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+}
+</style>
+{% else %}
+<section class="card"><p>小说项目不存在</p></section>
+{% endif %}
+{% endblock %}

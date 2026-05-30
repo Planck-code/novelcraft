@@ -105,7 +105,7 @@
 推荐目录结构如下：
 
 ```text
-agent_project/
+novelcraft/
 ├─ app/
 │  ├─ main.py
 │  ├─ config/

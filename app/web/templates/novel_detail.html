@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block content %}
+{% if novel %}
+<section class="card">
+  <div class="section-header">
+    <div>
+      <p class="eyebrow">小说项目</p>
+      <h2>{{ novel.title }}</h2>
+      <p class="muted">{{ novel.description or '暂无描述' }}</p>
+    </div>
+    <div class="stat-group">
+      <a href="/novels/{{ novel.id }}/memory" class="tab-btn" style="text-decoration:none;width:auto;padding:10px 16px;">记忆中心</a>
+      <button id="batch-analyze-btn" onclick="batchAnalyzeAll()" style="width:auto;">批量分析全部</button>
+      <span class="badge">{{ novel.status }}</span>
+      <span class="badge">{{ novel.total_chapters }} 章</span>
+    </div>
+  </div>
+</section>
+
+<section class="grid two-col">
+  <div class="card">
+    <h3>导入 TXT 文件</h3>
+    <form id="upload-form" class="stack">
+      <input type="file" name="file" accept=".txt" required />
+      <button type="submit">上传并自动切章</button>
+    </form>
+    <p id="upload-message" class="muted"></p>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="margin:0;">章节列表</h3>
+      <span id="batch-progress" class="muted" style="display:none;"></span>
+    </div>
+    <div class="stack compact">
+      {% for chapter in chapters %}
+      <a class="list-item" href="/chapters/{{ chapter.id }}/view">
+        <div>
+          <strong>第 {{ chapter.chapter_no }} 章 {{ chapter.title }}</strong>
+          <p class="muted">{{ chapter.word_count }} 字</p>
+        </div>
+        <span class="badge">{{ chapter.analysis_status }}</span>
+      </a>
+      {% else %}
+      <p class="muted">暂无章节，请先上传 txt 文件。</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<script>
+const novelId = {{ novel.id }};
+
+const uploadForm = document.getElementById('upload-form');
+const uploadMessage = document.getElementById('upload-message');
+uploadForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const formData = new FormData(uploadForm);
+  uploadMessage.textContent = '⏳ 正在上传和切分章节...';
+  const response = await fetch('/api/v1/novels/' + novelId + '/import-txt', {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) {
+    uploadMessage.textContent = '上传失败，请检查 txt 文件格式。';
+    return;
+  }
+  uploadMessage.textContent = '✅ 导入成功，页面即将刷新...';
+  setTimeout(() => window.location.reload(), 1500);
+});
+
+async function batchAnalyzeAll() {
+  const btn = document.getElementById('batch-analyze-btn');
+  const progress = document.getElementById('batch-progress');
+  const chapterItems = document.querySelectorAll('.list-item');
+  const chapterIds = [];
+
+  chapterItems.forEach(item => {
+    const href = item.getAttribute('href');
+    if (href) {
+      const match = href.match(/\/chapters\/(\d+)\/view/);
+      if (match) chapterIds.push(parseInt(match[1]));
+    }
+  });
+
+  if (chapterIds.length === 0) {
+    alert('暂无章节可分析');
+    return;
+  }
+
+  if (!confirm('将批量分析全部 ' + chapterIds.length + ' 章，这可能需要较长时间。确认继续？')) return;
+
+  btn.disabled = true;
+  progress.style.display = 'block';
+  progress.textContent = '⏳ 提交批量分析任务...';
+
+  try {
+    const resp = await fetch('/api/v1/novels/' + novelId + '/analyze-batch', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        chapter_ids: chapterIds,
+        provider_name: 'openai',
+        model_name: 'gpt-4o-mini',
+        include_revision: true,
+        update_memory: true,
+      }),
+    });
+    const task = await resp.json();
+    if (!resp.ok) {
+      progress.textContent = '提交失败\: ' + (task.detail || '');
+      btn.disabled = false;
+      return;
+    }
+
+    const pollInterval = setInterval(async () => {
+      const taskResp = await fetch('/api/v1/tasks/' + task.id);
+      const taskData = await taskResp.json();
+      progress.textContent = '状态\: ' + taskData.status;
+
+      if (taskData.status === 'success' || taskData.status === 'partial_success' || taskData.status === 'failed') {
+        clearInterval(pollInterval);
+        progress.textContent = '✅ 批量分析完成！';
+        btn.disabled = false;
+        setTimeout(() => window.location.reload(), 2000);
+      }
+    }, 3000);
+  } catch(err) {
+    progress.textContent = '请求失败\: ' + err.message;
+    btn.disabled = false;
+  }
+}
+</script>
+{% else %}
+<section class="card"><p>小说项目不存在</p></section>
+{% endif %}
+{% endblock %}

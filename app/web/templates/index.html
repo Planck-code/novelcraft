@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero card">
+  <div>
+    <p class="eyebrow">快速开始</p>
+    <h2>上传 txt 小说自动切章并智能分析</h2>
+    <p class="muted">支持中文章节标题自动识别，上传 txt 即可获得章节分析和写作建议</p>
+  </div>
+</section>
+
+<section class="grid two-col">
+  <div class="card">
+    <h3>创建小说项目</h3>
+    <form id="create-novel-form" class="stack">
+      <input name="title" placeholder="小说标题" required />
+      <input name="author_name" placeholder="作者名称（选填）" />
+      <textarea name="description" placeholder="小说简介（选填）"></textarea>
+      <button type="submit">创建项目</button>
+    </form>
+    <p id="create-message" class="muted"></p>
+  </div>
+
+  <div class="card">
+    <h3>我的小说</h3>
+    <div class="stack compact">
+      {% for novel in novels %}
+      <a class="list-item" href="/novels/{{ novel.id }}">
+        <div>
+          <strong>{{ novel.title }}</strong>
+          <p class="muted">{{ novel.author_name or '未知作者' }}</p>
+        </div>
+        <span class="badge">{{ novel.total_chapters }} 章</span>
+      </a>
+      {% else %}
+      <p class="muted">还没有创建小说项目，请先创建一个</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<script>
+  const form = document.getElementById('create-novel-form');
+  const message = document.getElementById('create-message');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const formData = new FormData(form);
+    const payload = Object.fromEntries(formData.entries());
+    const response = await fetch('/api/v1/novels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      message.textContent = '创建小说项目失败';
+      return;
+    }
+    const novel = await response.json();
+    message.textContent = '创建成功，正在跳转...';
+    window.location.href = `/novels/${novel.id}`;
+  });
+</script>
+{% endblock %}
