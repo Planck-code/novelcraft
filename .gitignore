@@ -21,6 +21,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Environment
+.env
+
 # Local app data
 data/
 *.db
